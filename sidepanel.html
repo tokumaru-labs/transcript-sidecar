@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Transcript Sidecar</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <main class="app">
+    <header class="header">
+      <div>
+        <div class="brand-row">
+          <h1>Transcript Sidecar</h1>
+          <span class="privacy-badge">LOCAL</span>
+        </div>
+        <p class="subtitle">YouTube字幕を、すぐコピー。</p>
+      </div>
+      <button id="refreshButton" class="icon-button" type="button" title="読み込み直す" aria-label="読み込み直す">↻</button>
+    </header>
+
+    <section id="statusCard" class="status-card" aria-live="polite">
+      <div id="statusSpinner" class="spinner" hidden></div>
+      <p id="statusText">YouTube動画を開いて、拡張機能アイコンを押してください。</p>
+    </section>
+
+    <details id="diagnostics" class="diagnostics" hidden>
+      <summary>診断情報</summary>
+      <pre id="diagnosticsList" class="diagnostics-list"></pre>
+      <button id="copyDiagnosticsButton" class="secondary-button diagnostics-copy" type="button">📋 診断情報をコピー</button>
+    </details>
+
+    <section id="content" hidden>
+      <div class="video-card">
+        <p id="videoTitle" class="video-title"></p>
+        <a id="videoUrl" class="video-url" href="#" target="_blank" rel="noreferrer"></a>
+      </div>
+
+      <label class="field-label" for="trackSelect">字幕</label>
+      <select id="trackSelect" class="track-select"></select>
+
+      <button id="copyPlainButton" class="primary-button" type="button">
+        <span class="button-icon">📋</span>
+        <span>全文をコピー</span>
+      </button>
+
+      <button id="copyReadableButton" class="readable-button" type="button">
+        <span class="button-icon">✨</span>
+        <span class="button-copy">
+          <strong>読みやすくコピー</strong>
+          <small>内容は変えず、段落だけ整えます</small>
+        </span>
+      </button>
+
+      <div class="button-grid">
+        <button id="copyTimestampButton" class="secondary-button" type="button">⏱ 時刻付きコピー</button>
+        <button id="copyMarkdownButton" class="secondary-button" type="button"># Markdownコピー</button>
+        <button id="downloadTxtButton" class="secondary-button" type="button">↓ TXT保存</button>
+        <button id="downloadMarkdownButton" class="secondary-button" type="button">↓ MD保存</button>
+      </div>
+
+      <div class="transcript-header">
+        <h2>Transcript</h2>
+        <span id="cueCount" class="cue-count"></span>
+      </div>
+      <div id="transcript" class="transcript" aria-live="polite"></div>
+    </section>
+
+    <footer class="footer">
+      <strong>No account. No tracking. No external server.</strong>
+      <span>字幕データは、この拡張機能から第三者サーバーへ送信しません。</span>
+      <span class="publisher">An open-source tool by Tokumaru Labs.</span>
+    </footer>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>
