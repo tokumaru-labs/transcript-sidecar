@@ -1,5 +1,7 @@
 # Transcript Sidecar
 
+[English](README.md) | [日本語](README_JA.md)
+
 A small, privacy-focused Manifest V3 Chrome extension for copying, formatting, and exporting transcripts from YouTube videos.
 
 **Current version: 0.3.3**  
