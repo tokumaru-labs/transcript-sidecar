@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Transcript Sidecar",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "description": "View, copy, format, and export YouTube transcripts in Chrome's Side Panel. No account, ads, tracking, or transcript server.",
   "homepage_url": "https://github.com/tokumaru-labs/transcript-sidecar",
   "minimum_chrome_version": "116",

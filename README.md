@@ -4,7 +4,7 @@
 
 A small, privacy-focused Manifest V3 Chrome extension for copying, formatting, and exporting transcripts from YouTube videos.
 
-**Current version: 0.3.3**  
+**Current version: 0.4.0**  
 **Publisher: Tokumaru Labs**
 
 > No account. No tracking. No ads. No developer-operated transcript server.
@@ -12,6 +12,7 @@ A small, privacy-focused Manifest V3 Chrome extension for copying, formatting, a
 ## Features
 
 - Opens in Chrome Side Panel
+- **Japanese / English interface**, switchable at any time from the **JP** / **EN** toggle in the header
 - Reads available caption tracks from the current YouTube video
 - One-click **Copy full transcript** with artificial caption line breaks removed
 - **Readable copy** that keeps the caption wording while inserting paragraph breaks for easier reading
@@ -26,7 +27,24 @@ A small, privacy-focused Manifest V3 Chrome extension for copying, formatting, a
 - No developer-operated backend server
 - No third-party runtime JavaScript dependencies
 
-## What changed in v0.3.3
+## What changed in v0.4.0
+
+- Added a **JP / EN** language toggle to the Side Panel header, next to the reload button.
+- Interface wording owned by the extension — tagline, buttons, status messages, toasts, errors, diagnostics panel, footer, and accessibility labels — now follows the selected language.
+- Switching language applies immediately, with no reload and no refetching of the transcript.
+- The choice is remembered between sessions. On first run the language follows the browser: Japanese for a Japanese browser, English otherwise.
+- Caption text, video titles, video URLs, and YouTube's own caption-track labels are never translated.
+- No new permissions, no external libraries, and no change to the caption-extraction strategy.
+
+## UI language
+
+The header has a compact **JP** / **EN** toggle. The active language is highlighted and exposed to assistive technology via `aria-pressed`.
+
+- **First run** — the language is chosen from `navigator.languages` / `navigator.language`: Japanese if the browser prefers Japanese, English otherwise.
+- **Persistence** — the choice is saved in `localStorage` under `transcriptSidecar.uiLanguage` and restored when the Side Panel reopens. This is extension-origin storage, so it needs no additional Chrome permission and is never sent anywhere.
+- **Scope** — only wording the extension itself renders is translated. Video titles, video URLs, transcript text, and caption-track labels supplied by YouTube are always shown exactly as received, so an English interface with Japanese captions (or the reverse) is expected and intentional.
+
+## Previous release highlights (v0.3.3)
 
 - Shortened the manifest description to meet Chrome Web Store length requirements.
 - No functional changes.
@@ -70,10 +88,11 @@ See [PRIVACY.md](PRIVACY.md) for the full privacy policy.
 2. Open `chrome://extensions/` in Chrome.
 3. Turn on **Developer mode**.
 4. Click **Load unpacked**.
-5. Select the extracted `transcript-sidecar-v0.3.3` folder.
+5. Select the extracted `transcript-sidecar-v0.4.0` folder.
 6. Open a YouTube video that has captions.
 7. Click the **Transcript Sidecar** extension icon.
-8. Choose **全文をコピー** or **読みやすくコピー**.
+8. Pick **JP** or **EN** in the header if you want to change the interface language.
+9. Choose **Copy full transcript** or **Copy readable**.
 
 ## Export modes
 
@@ -107,6 +126,7 @@ Transcript Sidecar
 │  ├─ caption-parsers.js  # JSON3 / XML / WebVTT parsers
 │  ├─ youtube.js          # isolated YouTube page interactions
 │  ├─ text.js             # normalization and export formatting
+│  ├─ i18n.js             # ja/en UI dictionaries and language selection
 │  ├─ ui.js               # DOM rendering and status/toast helpers
 │  └─ files.js            # clipboard and download helpers
 ├─ icons/

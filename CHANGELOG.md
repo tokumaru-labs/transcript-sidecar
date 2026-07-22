@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.4.0 — 2026-07-22
+
+### Added
+
+- Japanese / English UI language toggle (**JP** / **EN**) in the Side Panel header, next to the reload button.
+- `src/i18n.js`: a dependency-free translation layer holding the `ja` and `en` dictionaries, with `{placeholder}` substitution and a safe fallback chain (active language → English → key name).
+
+### Changed
+
+- Interface wording that the extension owns — tagline, caption label, buttons, transcript heading, status messages, toasts, error messages, diagnostics panel, footer, and `title` / `aria-label` attributes — now follows the selected language.
+- Switching language re-renders immediately, without reloading the Side Panel or refetching the transcript. The current status message, segment count, caption-track marker, and cue tooltips all update in place.
+- The language choice is stored in `localStorage` under `transcriptSidecar.uiLanguage` and restored the next time the Side Panel opens. With no stored choice, the initial language is taken from `navigator.languages` / `navigator.language`: `ja` for Japanese, English otherwise.
+
+### Fixed
+
+- The caption-track dropdown no longer appends its own "auto-generated" marker on top of the one YouTube already includes in the track label (for example `English (auto-generated) (auto-generated) · en`). Tracks are now shown as `label · languageCode`, using YouTube's text verbatim.
+- The segment count beside the **Transcript** heading no longer risks being clipped in a narrow Side Panel: the Japanese form is now `{count}件`, and the count is pinned to the heading's line.
+
+### Preserved
+
+- All four caption-retrieval paths are unchanged, as are transcript parsing, formatting, copying, saving, and click-to-seek.
+- Caption track labels supplied by YouTube, along with their `languageCode` and `kind`, are displayed as received and are never translated.
+- Video titles, video URLs, and transcript text are never translated or rewritten. Mixed-language output remains possible by design when the interface language differs from the caption language.
+- No change to `permissions` or `host_permissions`, and no new Chrome permission: `localStorage` on the extension origin requires none.
+- No external libraries, npm dependencies, or build step.
+- No account, analytics, ads, tracking, remote runtime code, or developer-operated transcript server.
+
 ## 0.3.3 — 2026-07-19
 
 ### Changed

@@ -1,7 +1,18 @@
+import { getLanguage, setLanguage, syncDocumentLanguage, translate } from './i18n.js';
 import { formatTimestamp } from './text.js';
 
 const elements = {};
 let toastTimer = null;
+
+/**
+ * Live UI state that has to survive a language switch.
+ *
+ * Status messages and caption tracks are kept as descriptors (translation key
+ * plus params) rather than finished strings, so switching language re-renders
+ * them without reloading the page or refetching the transcript.
+ */
+let currentStatus = null;
+let currentCueCount = null;
 
 /**
  * Resolve and cache all required DOM elements once.
@@ -46,6 +57,101 @@ export function getUiElements() {
 }
 
 /**
+ * Resolve a message that may be a plain string or a {key, params} descriptor.
+ *
+ * Raw strings are passed through untouched so browser-supplied error text is
+ * never mangled by the translation layer.
+ *
+ * @param {string|{key: string, params?: Record<string, unknown>}} message
+ * @returns {string}
+ */
+function resolveMessage(message) {
+  if (message && typeof message === 'object' && typeof message.key === 'string') {
+    return translate(message.key, message.params);
+  }
+
+  return String(message ?? '');
+}
+
+/**
+ * Wire the JP / EN toggle and paint the interface in the active language.
+ */
+export function setupLanguageToggle() {
+  const buttons = document.querySelectorAll('[data-lang]');
+
+  for (const button of buttons) {
+    button.addEventListener('click', () => {
+      if (button.dataset.lang === getLanguage()) return;
+      setLanguage(button.dataset.lang);
+      applyTranslations();
+    });
+  }
+
+  applyTranslations();
+}
+
+/**
+ * Re-render every string the extension owns in the active language.
+ *
+ * Video title, video URL, caption text, and YouTube-supplied track labels are
+ * deliberately left untouched.
+ */
+export function applyTranslations() {
+  syncDocumentLanguage();
+
+  for (const node of document.querySelectorAll('[data-i18n]')) {
+    node.textContent = translate(node.dataset.i18n);
+  }
+
+  for (const node of document.querySelectorAll('[data-i18n-title]')) {
+    node.title = translate(node.dataset.i18nTitle);
+  }
+
+  for (const node of document.querySelectorAll('[data-i18n-aria-label]')) {
+    node.setAttribute('aria-label', translate(node.dataset.i18nAriaLabel));
+  }
+
+  // The language buttons describe their own state: the active one reports that
+  // it is already selected, the other offers to switch.
+  for (const button of document.querySelectorAll('[data-lang]')) {
+    const isSelected = button.dataset.lang === getLanguage();
+    const description = translate(
+      isSelected ? button.dataset.i18nSelected : button.dataset.i18nUnselected
+    );
+
+    button.setAttribute('aria-pressed', String(isSelected));
+    button.title = description;
+    button.setAttribute('aria-label', description);
+  }
+
+  // Restore live state that the static pass above may have overwritten.
+  // The track dropdown is deliberately left alone: it holds only YouTube text.
+  renderStatus();
+  renderCueCount();
+  refreshSeekTitles();
+}
+
+function renderStatus() {
+  if (!currentStatus) return;
+  elements.statusText.textContent = resolveMessage(currentStatus.message);
+}
+
+function renderCueCount() {
+  if (currentCueCount === null) return;
+  elements.cueCount.textContent = translate('transcript.segments', {
+    count: currentCueCount
+  });
+}
+
+function refreshSeekTitles() {
+  const title = translate('transcript.seekTitle');
+
+  for (const button of elements.transcript.querySelectorAll('.cue-time')) {
+    button.title = title;
+  }
+}
+
+/**
  * Show the capture diagnostics block below the status card.
  * Only called when transcript loading has failed.
  *
@@ -72,8 +178,14 @@ export function clearDiagnostics() {
   elements.diagnosticsList.textContent = '';
 }
 
+/**
+ * @param {string|{key: string, params?: Record<string, unknown>}} message
+ * @param {'normal'|'error'|'success'} [type]
+ * @param {boolean} [loading]
+ */
 export function setStatus(message, type = 'normal', loading = false) {
-  elements.statusText.textContent = message;
+  currentStatus = { message, type, loading };
+  elements.statusText.textContent = resolveMessage(message);
   elements.statusSpinner.hidden = !loading;
   elements.statusCard.classList.remove('error', 'success');
 
@@ -100,16 +212,23 @@ export function renderVideoMetadata(title, url) {
   elements.videoUrl.href = url;
 }
 
+/**
+ * Render the caption-track dropdown.
+ *
+ * Everything shown here comes from YouTube. The label already states when a
+ * track is auto-generated, so the extension adds no marker of its own and no
+ * translation is applied: label, languageCode, and kind are passed through
+ * exactly as received.
+ */
 export function renderTrackOptions(tracks, selectedIndex) {
   elements.trackSelect.replaceChildren();
 
-  tracks.forEach((track, index) => {
+  (Array.isArray(tracks) ? tracks : []).forEach((track, index) => {
     const option = document.createElement('option');
-    const generatedLabel = track.kind === 'asr' ? '（自動生成）' : '';
     const languageLabel = track.languageCode ? ` · ${track.languageCode}` : '';
 
     option.value = String(index);
-    option.textContent = `${track.label}${generatedLabel}${languageLabel}`;
+    option.textContent = `${track.label}${languageLabel}`;
     elements.trackSelect.appendChild(option);
   });
 
@@ -127,7 +246,7 @@ export function renderTranscript(cues, onSeek) {
     timeButton.type = 'button';
     timeButton.className = 'cue-time';
     timeButton.textContent = formatTimestamp(cue.startMs);
-    timeButton.title = 'この位置から再生';
+    timeButton.title = translate('transcript.seekTitle');
     timeButton.addEventListener('click', () => onSeek(cue.startMs));
 
     const text = document.createElement('p');
@@ -139,17 +258,22 @@ export function renderTranscript(cues, onSeek) {
   });
 
   elements.transcript.replaceChildren(fragment);
-  elements.cueCount.textContent = `${cues.length} segments`;
+  currentCueCount = cues.length;
+  renderCueCount();
 }
 
 export function clearTranscript() {
   elements.transcript.replaceChildren();
+  currentCueCount = null;
   elements.cueCount.textContent = '';
 }
 
+/**
+ * @param {string|{key: string, params?: Record<string, unknown>}} message
+ */
 export function showToast(message) {
   window.clearTimeout(toastTimer);
-  elements.toast.textContent = message;
+  elements.toast.textContent = resolveMessage(message);
   elements.toast.classList.add('show');
 
   toastTimer = window.setTimeout(() => {
