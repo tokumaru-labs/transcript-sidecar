@@ -32,7 +32,7 @@ A small, privacy-focused Manifest V3 Chrome extension for copying, formatting, a
 
 - The extension package is now localized. Added `_locales/en/messages.json` and `_locales/ja/messages.json`, and set `default_locale: "en"` in the manifest.
 - `manifest.json` now references those messages instead of hard-coding text, so the extension **name**, **short name**, **description**, and **toolbar tooltip** follow Chrome's UI language: English on an English Chrome, Japanese on a Japanese Chrome, English anywhere else.
-- Chrome Web Store submission notes now carry a matched English/Japanese pair for the short description, the detailed description, and the screenshot checklist.
+- Chrome Web Store submission notes now document the localized package-summary source, matched English/Japanese detailed descriptions, and per-language screenshot checklists.
 - The Side Panel's **JP** / **EN** toggle is unchanged and still works independently of Chrome's UI language.
 - No new permissions, no external libraries, no build step, and no change to the caption-extraction strategy.
 

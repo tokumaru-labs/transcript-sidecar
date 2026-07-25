@@ -11,7 +11,7 @@
 ### Changed
 
 - `manifest.json` now references messages instead of hard-coding text: `name` → `__MSG_extensionName__`, `short_name` → `__MSG_extensionShortName__`, `description` → `__MSG_extensionDescription__`, and `action.default_title` → `__MSG_actionTitle__`.
-- `STORE_LISTING.md` now carries a matched English/Japanese pair for the short description, the detailed description, and the screenshot checklist. Both descriptions list the same nine features and the same six privacy statements, in the same order.
+- `STORE_LISTING.md` now identifies `_locales` as the single source of truth for the localized package summary and carries matched English/Japanese detailed descriptions and screenshot checklists. Both descriptions list the same nine features and the same six privacy statements, in the same order.
 - Version bumped to 0.4.1.
 
 ### Preserved
