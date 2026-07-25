@@ -39,13 +39,15 @@ characters, short name 12, description 132.
 | `extensionDescription` | View, copy, format, and export YouTube transcripts in Chrome's Side Panel. No account, ads, tracking, or transcript server. | YouTube動画の文字起こしをChromeのサイドパネルで表示・コピー・整形・保存。アカウント・広告・追跡・外部字幕サーバーなし。 |
 | `actionTitle` | Open Transcript Sidecar | Transcript Sidecarを開く |
 
-## Short description — English
+`extensionDescription` is the single source of truth for the Store's package
+summary. Chrome Web Store takes the summary from the localized manifest, so:
 
-View YouTube transcripts in Chrome's Side Panel and copy them as full text, readable paragraphs, timestamps, or Markdown.
-
-## Short description — Japanese
-
-YouTubeの字幕をChromeのサイドパネルで表示し、全文・読みやすい段落・タイムスタンプ付き・Markdownでコピーできます。
+- Do not hand-enter a separate short description in the Developer Dashboard.
+- Do not keep an alternative summary draft in this file. To change the summary,
+  edit `extensionDescription` in `_locales/en/messages.json` and
+  `_locales/ja/messages.json`, and nowhere else.
+- Only the **detailed description** is entered per language in the Developer
+  Dashboard, using the two sections below.
 
 ## Detailed description — English
 
@@ -157,7 +159,9 @@ field:
 
 - Set the default listing language to **English**, matching `default_locale`.
 - Add **Japanese** as an additional listing language.
-- Fill both listings from the short and detailed descriptions above.
+- Leave the summary field alone in both listings: it is supplied by
+  `extensionDescription` from `_locales/`.
+- Fill the detailed description of each listing from the matching section above.
 - Upload a separate screenshot set per listing language (see below).
 
 ## Screenshot checklist — English listing
