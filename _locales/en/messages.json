@@ -1,0 +1,18 @@
+{
+  "extensionName": {
+    "message": "Transcript Sidecar",
+    "description": "Extension name shown in the Chrome Web Store, chrome://extensions, and the extensions menu. Product name: keep it identical in every locale. Chrome allows at most 45 characters."
+  },
+  "extensionShortName": {
+    "message": "Sidecar",
+    "description": "Short name used where Chrome has no room for the full name, such as under the toolbar icon. Product name: keep it identical in every locale. Chrome allows at most 12 characters."
+  },
+  "extensionDescription": {
+    "message": "View, copy, format, and export YouTube transcripts in Chrome's Side Panel. No account, ads, tracking, or transcript server.",
+    "description": "Store summary and the description under chrome://extensions. Chrome allows at most 132 characters, so keep every locale within that limit. Must describe the same features as every other locale."
+  },
+  "actionTitle": {
+    "message": "Open Transcript Sidecar",
+    "description": "Tooltip on the toolbar icon. Clicking the icon opens the Side Panel."
+  }
+}

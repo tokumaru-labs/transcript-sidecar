@@ -1,0 +1,18 @@
+{
+  "extensionName": {
+    "message": "Transcript Sidecar",
+    "description": "Chrome Web Store、chrome://extensions、拡張機能メニューに表示される名称。製品名のため全ロケールで同一に保つ。Chromeの上限は45文字。"
+  },
+  "extensionShortName": {
+    "message": "Sidecar",
+    "description": "ツールバーアイコン下など、正式名称が入りきらない場所で使われる短縮名。製品名のため全ロケールで同一に保つ。Chromeの上限は12文字。"
+  },
+  "extensionDescription": {
+    "message": "YouTube動画の文字起こしをChromeのサイドパネルで表示・コピー・整形・保存。アカウント・広告・追跡・外部字幕サーバーなし。",
+    "description": "Storeの概要およびchrome://extensionsに表示される説明。Chromeの上限は132文字のため全ロケールでその範囲に収める。他ロケールと同じ機能を説明すること。"
+  },
+  "actionTitle": {
+    "message": "Transcript Sidecarを開く",
+    "description": "ツールバーアイコンのツールチップ。アイコンをクリックするとサイドパネルが開く。"
+  }
+}

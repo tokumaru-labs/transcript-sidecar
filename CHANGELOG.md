@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.4.1 — 2026-07-25
+
+### Added
+
+- `_locales/en/messages.json` and `_locales/ja/messages.json`: the extension package itself is now localized, so Chrome shows the extension name, short name, description, and toolbar tooltip in English or Japanese according to the browser's UI language.
+- `default_locale: "en"` in `manifest.json`. English is the fallback whenever Chrome's UI language has no bundle of its own.
+- Each message carries a `description` field recording what the string is for and the Chrome length limit that applies to it, so the limits are visible at the point of editing rather than only at submission time.
+
+### Changed
+
+- `manifest.json` now references messages instead of hard-coding text: `name` → `__MSG_extensionName__`, `short_name` → `__MSG_extensionShortName__`, `description` → `__MSG_extensionDescription__`, and `action.default_title` → `__MSG_actionTitle__`.
+- `STORE_LISTING.md` now carries a matched English/Japanese pair for the short description, the detailed description, and the screenshot checklist. Both descriptions list the same nine features and the same six privacy statements, in the same order.
+- Version bumped to 0.4.1.
+
+### Preserved
+
+- **The Side Panel's own JP / EN toggle is unchanged.** It remains driven by `src/i18n.js` and `localStorage`, still applies immediately, and is still independent of Chrome's UI language. Package localization was added alongside it, not in place of it. A user on English Chrome can still read the panel in Japanese, and the reverse.
+- No dictionary merge and no i18n restructuring: `src/i18n.js` is byte-for-byte unchanged.
+- `permissions` and `host_permissions` are byte-for-byte identical to 0.4.0. `_locales` requires no Chrome permission.
+- All four caption-retrieval paths, transcript parsing, formatting, copying, saving, and click-to-seek are unchanged.
+- Caption text, video titles, video URLs, and YouTube-supplied caption-track labels are still never translated.
+- No external libraries, npm dependencies, or build step. The `_locales` files are static data read by Chrome, not executable code.
+- No account, analytics, ads, tracking, remote runtime code, or developer-operated transcript server.
+
 ## 0.4.0 — 2026-07-22
 
 ### Added

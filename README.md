@@ -4,7 +4,7 @@
 
 A small, privacy-focused Manifest V3 Chrome extension for copying, formatting, and exporting transcripts from YouTube videos.
 
-**Current version: 0.4.0**  
+**Current version: 0.4.1**  
 **Publisher: Tokumaru Labs**
 
 > No account. No tracking. No ads. No developer-operated transcript server.
@@ -13,6 +13,7 @@ A small, privacy-focused Manifest V3 Chrome extension for copying, formatting, a
 
 - Opens in Chrome Side Panel
 - **Japanese / English interface**, switchable at any time from the **JP** / **EN** toggle in the header
+- **Localized extension package**: the name, description, and toolbar tooltip Chrome itself displays follow the browser's UI language
 - Reads available caption tracks from the current YouTube video
 - One-click **Copy full transcript** with artificial caption line breaks removed
 - **Readable copy** that keeps the caption wording while inserting paragraph breaks for easier reading
@@ -27,6 +28,28 @@ A small, privacy-focused Manifest V3 Chrome extension for copying, formatting, a
 - No developer-operated backend server
 - No third-party runtime JavaScript dependencies
 
+## What changed in v0.4.1
+
+- The extension package is now localized. Added `_locales/en/messages.json` and `_locales/ja/messages.json`, and set `default_locale: "en"` in the manifest.
+- `manifest.json` now references those messages instead of hard-coding text, so the extension **name**, **short name**, **description**, and **toolbar tooltip** follow Chrome's UI language: English on an English Chrome, Japanese on a Japanese Chrome, English anywhere else.
+- Chrome Web Store submission notes now carry a matched English/Japanese pair for the short description, the detailed description, and the screenshot checklist.
+- The Side Panel's **JP** / **EN** toggle is unchanged and still works independently of Chrome's UI language.
+- No new permissions, no external libraries, no build step, and no change to the caption-extraction strategy.
+
+## Two language layers, on purpose
+
+These are separate mechanisms, and either can be set without affecting the other.
+
+| | Package / Store language | Side Panel interface language |
+| --- | --- | --- |
+| Set by | Chrome's UI language, via `default_locale` and `_locales/` | You, via the **JP** / **EN** toggle in the panel header |
+| Covers | Extension name, short name, description, toolbar tooltip, Store listing | Tagline, buttons, status messages, toasts, errors, diagnostics, footer, accessibility labels |
+| Changeable in-product | No | Yes, immediately |
+| Remembered | Follows the browser | `localStorage`, per extension origin |
+
+Running Chrome in English and reading the panel in Japanese is a supported
+combination, as is the reverse.
+
 ## What changed in v0.4.0
 
 - Added a **JP / EN** language toggle to the Side Panel header, next to the reload button.
@@ -36,7 +59,7 @@ A small, privacy-focused Manifest V3 Chrome extension for copying, formatting, a
 - Caption text, video titles, video URLs, and YouTube's own caption-track labels are never translated.
 - No new permissions, no external libraries, and no change to the caption-extraction strategy.
 
-## UI language
+## Side Panel interface language (JP / EN toggle)
 
 The header has a compact **JP** / **EN** toggle. The active language is highlighted and exposed to assistive technology via `aria-pressed`.
 
@@ -88,7 +111,7 @@ See [PRIVACY.md](PRIVACY.md) for the full privacy policy.
 2. Open `chrome://extensions/` in Chrome.
 3. Turn on **Developer mode**.
 4. Click **Load unpacked**.
-5. Select the extracted `transcript-sidecar-v0.4.0` folder.
+5. Select the extracted `transcript-sidecar-v0.4.1` folder.
 6. Open a YouTube video that has captions.
 7. Click the **Transcript Sidecar** extension icon.
 8. Pick **JP** or **EN** in the header if you want to change the interface language.
@@ -120,6 +143,9 @@ Transcript Sidecar
 ├─ background.js
 ├─ sidepanel.html
 ├─ sidepanel.css
+├─ _locales/
+│  ├─ en/messages.json    # package strings shown by Chrome (default locale)
+│  └─ ja/messages.json    # package strings shown by Chrome
 ├─ src/
 │  ├─ app.js              # application flow and event wiring
 │  ├─ captions.js         # caption-loading fallback strategy
