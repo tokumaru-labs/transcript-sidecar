@@ -283,7 +283,11 @@ function normalizeErrorMessage(error) {
   const fileErrorKey = FILE_ERROR_KEYS.get(message);
   if (fileErrorKey) return { key: fileErrorKey };
 
-  if (/Cannot access contents of url|Cannot access a chrome|Missing host permission/i.test(message)) {
+  // Chrome has reworded this one: older builds said "Cannot access contents of
+  // url ...", current builds say "Cannot access contents of the page ...".
+  // Matching only up to "of" covers both, so the message stays translated
+  // instead of falling through to the raw English text Chrome produced.
+  if (/Cannot access contents of|Cannot access a chrome|Missing host permission/i.test(message)) {
     return { key: 'error.noHostPermission' };
   }
 

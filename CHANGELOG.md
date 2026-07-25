@@ -14,6 +14,10 @@
 - `STORE_LISTING.md` now identifies `_locales` as the single source of truth for the localized package summary and carries matched English/Japanese detailed descriptions and screenshot checklists. Both descriptions list the same nine features and the same six privacy statements, in the same order.
 - Version bumped to 0.4.1.
 
+### Fixed
+
+- The host-permission error is translated again. Chrome reworded the message from "Cannot access contents of url …" to "Cannot access contents of the page …", which the pattern in `normalizeErrorMessage` no longer matched, so the Side Panel printed Chrome's raw English text verbatim — including with the interface set to Japanese. Opening the panel on any non-YouTube tab reproduced it. Present since 0.3.3.
+
 ### Preserved
 
 - **The Side Panel's own JP / EN toggle is unchanged.** It remains driven by `src/i18n.js` and `localStorage`, still applies immediately, and is still independent of Chrome's UI language. Package localization was added alongside it, not in place of it. A user on English Chrome can still read the panel in Japanese, and the reverse.
