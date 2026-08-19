@@ -4,7 +4,7 @@
 
 A small, privacy-focused Manifest V3 Chrome extension for copying, formatting, and exporting transcripts from YouTube videos.
 
-**Current version: 0.4.0**  
+**Current version: 0.4.1**
 **Publisher: Tokumaru Labs**
 
 > No account. No tracking. No ads. No developer-operated transcript server.
@@ -35,6 +35,13 @@ A small, privacy-focused Manifest V3 Chrome extension for copying, formatting, a
 - The choice is remembered between sessions. On first run the language follows the browser: Japanese for a Japanese browser, English otherwise.
 - Caption text, video titles, video URLs, and YouTube's own caption-track labels are never translated.
 - No new permissions, no external libraries, and no change to the caption-extraction strategy.
+
+## What changed in v0.4.1
+
+- When both timed-text paths return no cues, the extension can read YouTube's transcript-panel data silently through request metadata already present on the current video page.
+- Transcript acquisition no longer expands the description or opens, closes, or clicks YouTube's own transcript panel.
+- If all silent routes fail, Transcript Sidecar fails closed with local diagnostics. An already user-opened transcript panel may still be inspected read-only.
+- No new permissions, external services, runtime dependencies, or developer-operated backend were added.
 
 ## UI language
 
@@ -88,7 +95,7 @@ See [PRIVACY.md](PRIVACY.md) for the full privacy policy.
 2. Open `chrome://extensions/` in Chrome.
 3. Turn on **Developer mode**.
 4. Click **Load unpacked**.
-5. Select the extracted `transcript-sidecar-v0.4.0` folder.
+5. Select the extracted `transcript-sidecar-v0.4.1` folder.
 6. Open a YouTube video that has captions.
 7. Click the **Transcript Sidecar** extension icon.
 8. Pick **JP** or **EN** in the header if you want to change the interface language.
@@ -150,8 +157,9 @@ The extension tries several methods in order:
 
 1. YouTube timed-text endpoint from the extension context (`json3`, XML/SRV, WebVTT)
 2. The same timed-text requests from the YouTube page context
-3. YouTube's own rendered transcript panel as a fallback
-4. A read-only scan of the visible transcript panel that does not rely on legacy `ytd-transcript-*` markup (final fallback; no clicks, no network requests of its own)
+3. YouTube transcript-panel data fetched silently from request metadata already present on the current video page
+4. A read-only scan of an already user-opened legacy transcript panel
+5. A read-only scan of an already user-opened visible transcript panel that does not rely on legacy `ytd-transcript-*` markup
 
 This multi-step approach is used because YouTube's internal caption behavior can vary by video and can change over time.
 

@@ -1,3 +1,9 @@
+import {
+  findTranscriptPanelRequest,
+  getCaptionTrackIdentity,
+  resolveSilentPanelTrackSelection
+} from './silent-transcript.js';
+
 /**
  * Chrome scripting helpers for interacting with the active YouTube page.
  *
@@ -54,6 +60,17 @@ export async function readVideoMetadata(tabId) {
         response = window.ytInitialPlayerResponse;
       }
 
+      const url = new URL(location.href);
+      const pathVideoIdentity = url.pathname === '/watch'
+        ? String(url.searchParams.get('v') || '')
+        : String(url.pathname.match(/^\/(?:shorts|live)\/([^/?#]+)/)?.[1] || '');
+      const responseVideoIdentity = String(response?.videoDetails?.videoId || '');
+      const videoIdentity = responseVideoIdentity
+        && pathVideoIdentity
+        && responseVideoIdentity !== pathVideoIdentity
+        ? ''
+        : responseVideoIdentity || pathVideoIdentity;
+
       const captionTracks = response
         ?.captions
         ?.playerCaptionsTracklistRenderer
@@ -72,10 +89,11 @@ export async function readVideoMetadata(tabId) {
 
       return {
         isYouTubeVideo: true,
+        videoIdentity,
         title: response?.videoDetails?.title
           || document.title.replace(/\s*-\s*YouTube\s*$/, ''),
         url: location.href,
-        tracks: captionTracks.map((track) => ({
+        tracks: (videoIdentity ? captionTracks : []).map((track) => ({
           baseUrl: track.baseUrl,
           languageCode: track.languageCode || '',
           label: getTrackLabel(track),
@@ -87,7 +105,17 @@ export async function readVideoMetadata(tabId) {
     }
   });
 
-  return results?.[0]?.result || null;
+  const metadata = results?.[0]?.result || null;
+  if (!metadata) return null;
+
+  return {
+    ...metadata,
+    tracks: (Array.isArray(metadata.tracks) ? metadata.tracks : [])
+      .map((track) => ({
+        ...track,
+        trackIdentity: getCaptionTrackIdentity(track)
+      }))
+  };
 }
 
 /**
@@ -133,8 +161,330 @@ export async function fetchCaptionBodyFromPage(tabId, baseUrl, format) {
 }
 
 /**
- * Open YouTube's own transcript panel and read rendered segments.
- * This is the final fallback when timed-text requests fail.
+ * Fetch transcript data without opening or changing any YouTube page UI.
+ *
+ * The page already carries get_panel request metadata on its transcript-button
+ * command. Reading that data and calling the same YouTube-owned endpoint is
+ * independent from executing the command: no page element is clicked, no panel
+ * is shown, and the description state is untouched.
+ *
+ * @param {number} tabId
+ * @param {unknown} selectedTrack
+ * @param {unknown[]} availableTracks
+ * @param {string} expectedVideoIdentity
+ * @returns {Promise<{ok: boolean, status: number, body: string, commandType?: string, trackIdentity?: string, unsafeSelection?: boolean, errorCode?: string, error?: string}>}
+ */
+export async function fetchSilentTranscriptPanelFromPage(
+  tabId,
+  selectedTrack,
+  availableTracks,
+  expectedVideoIdentity
+) {
+  const selection = resolveSilentPanelTrackSelection(
+    selectedTrack,
+    availableTracks
+  );
+
+  if (!selection.ok) {
+    return {
+      ok: false,
+      status: 0,
+      body: '',
+      unsafeSelection: true,
+      errorCode: selection.errorCode,
+      error: selection.error
+    };
+  }
+
+  const commandResults = await chrome.scripting.executeScript({
+    target: { tabId },
+    world: 'MAIN',
+    args: [String(expectedVideoIdentity || '')],
+    func: (expectedIdentity) => {
+      const readVideoIdentity = () => {
+        const url = new URL(location.href);
+        const pathIdentity = url.pathname === '/watch'
+          ? String(url.searchParams.get('v') || '')
+          : String(url.pathname.match(/^\/(?:shorts|live)\/([^/?#]+)/)?.[1] || '');
+        const player = document.getElementById('movie_player');
+        const ytdPlayer = document.querySelector('ytd-player');
+        let response = null;
+
+        try {
+          response = player?.getPlayerResponse?.() || null;
+        } catch {
+          response = null;
+        }
+
+        if (!response) {
+          try {
+            response = ytdPlayer?.getPlayerResponse?.() || null;
+          } catch {
+            response = null;
+          }
+        }
+
+        const responseIdentity = String(response?.videoDetails?.videoId || '');
+        if (responseIdentity && pathIdentity && responseIdentity !== pathIdentity) {
+          return '';
+        }
+        return responseIdentity || pathIdentity;
+      };
+
+      const videoIdentity = readVideoIdentity();
+      if (!expectedIdentity || videoIdentity !== expectedIdentity) {
+        return { videoIdentity, commandGroups: [], contextChanged: true };
+      }
+
+      return {
+        videoIdentity,
+        contextChanged: false,
+        commandGroups: Array
+          .from(document.querySelectorAll('ytd-video-description-transcript-section-renderer'))
+          .map((section) => (
+            section
+              ?.data
+              ?.primaryButton
+              ?.buttonRenderer
+              ?.command
+              ?.commandExecutorCommand
+              ?.commands || []
+          ))
+      };
+    }
+  });
+
+  const commandResult = commandResults?.[0]?.result || null;
+  if (
+    !commandResult
+    || commandResult.contextChanged
+    || commandResult.videoIdentity !== expectedVideoIdentity
+  ) {
+    return {
+      ok: false,
+      status: 0,
+      body: '',
+      unsafeSelection: true,
+      errorCode: 'video-context-changed',
+      error: 'video identity changed before silent transcript request'
+    };
+  }
+
+  const commandGroups = commandResult.commandGroups || [];
+  const request = findTranscriptPanelRequest(commandGroups);
+
+  if (!request) {
+    return {
+      ok: false,
+      status: 0,
+      body: '',
+      error: 'transcript panel request metadata unavailable'
+    };
+  }
+
+  const fetchResults = await chrome.scripting.executeScript({
+    target: { tabId },
+    world: 'MAIN',
+    args: [
+      request.panelId,
+      request.params,
+      selection.languageCode,
+      String(expectedVideoIdentity || '')
+    ],
+    func: async (panelId, params, requestedLanguage, expectedIdentity) => {
+      let navigationStarted = false;
+      const markNavigation = () => {
+        navigationStarted = true;
+      };
+      document.addEventListener('yt-navigate-start', markNavigation);
+
+      const readVideoIdentity = () => {
+        const url = new URL(location.href);
+        const pathIdentity = url.pathname === '/watch'
+          ? String(url.searchParams.get('v') || '')
+          : String(url.pathname.match(/^\/(?:shorts|live)\/([^/?#]+)/)?.[1] || '');
+        const player = document.getElementById('movie_player');
+        const ytdPlayer = document.querySelector('ytd-player');
+        let response = null;
+
+        try {
+          response = player?.getPlayerResponse?.() || null;
+        } catch {
+          response = null;
+        }
+
+        if (!response) {
+          try {
+            response = ytdPlayer?.getPlayerResponse?.() || null;
+          } catch {
+            response = null;
+          }
+        }
+
+        const responseIdentity = String(response?.videoDetails?.videoId || '');
+        if (responseIdentity && pathIdentity && responseIdentity !== pathIdentity) {
+          return '';
+        }
+        return responseIdentity || pathIdentity;
+      };
+
+      try {
+        if (!expectedIdentity || readVideoIdentity() !== expectedIdentity) {
+          return {
+            ok: false,
+            status: 0,
+            body: '',
+            contextChanged: true,
+            error: 'video identity changed before silent transcript fetch'
+          };
+        }
+
+        const pageContext = window.ytcfg?.get?.('INNERTUBE_CONTEXT');
+        const apiKey = window.ytcfg?.get?.('INNERTUBE_API_KEY');
+
+        if (!pageContext || !apiKey) {
+          return {
+            ok: false,
+            status: 0,
+            body: '',
+            error: 'YouTube request context unavailable'
+          };
+        }
+
+        const context = JSON.parse(JSON.stringify(pageContext));
+        const language = String(requestedLanguage || '');
+
+        if (/^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/i.test(language)) {
+          context.client = context.client || {};
+          context.client.hl = language;
+        }
+
+        const url = new URL('/youtubei/v1/get_panel', location.origin);
+        url.searchParams.set('key', apiKey);
+        url.searchParams.set('prettyPrint', 'false');
+
+        const headers = {
+          'content-type': 'application/json',
+          'x-youtube-client-name': String(
+            window.ytcfg?.get?.('INNERTUBE_CONTEXT_CLIENT_NAME') || 1
+          ),
+          'x-youtube-client-version': String(
+            window.ytcfg?.get?.('INNERTUBE_CONTEXT_CLIENT_VERSION')
+            || context?.client?.clientVersion
+            || ''
+          )
+        };
+
+        const visitorData = context?.client?.visitorData
+          || window.ytcfg?.get?.('VISITOR_DATA');
+        if (visitorData) headers['x-goog-visitor-id'] = visitorData;
+
+        const response = await fetch(url.toString(), {
+          method: 'POST',
+          credentials: 'include',
+          cache: 'no-store',
+          headers,
+          body: JSON.stringify({ context, panelId, params })
+        });
+
+        const body = await response.text();
+        if (navigationStarted || readVideoIdentity() !== expectedIdentity) {
+          return {
+            ok: false,
+            status: response.status,
+            body: '',
+            contextChanged: true,
+            error: 'video identity changed during silent transcript fetch'
+          };
+        }
+
+        return {
+          ok: response.ok,
+          status: response.status,
+          body
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          status: 0,
+          body: '',
+          contextChanged: navigationStarted
+            || readVideoIdentity() !== expectedIdentity,
+          error: String(error?.message || error)
+        };
+      } finally {
+        document.removeEventListener('yt-navigate-start', markNavigation);
+      }
+    }
+  });
+
+  const fetchResult = fetchResults?.[0]?.result || {
+    ok: false,
+    status: 0,
+    body: '',
+    error: 'silent transcript request returned no result'
+  };
+
+  return {
+    ...fetchResult,
+    commandType: request.commandType,
+    trackIdentity: selection.trackIdentity,
+    unsafeSelection: Boolean(fetchResult.contextChanged),
+    errorCode: fetchResult.contextChanged ? 'video-context-changed' : undefined
+  };
+}
+
+/**
+ * Read the stable identity of the video currently represented by both the
+ * YouTube URL and player response. A mismatch during SPA navigation returns an
+ * empty identity so callers fail closed.
+ *
+ * @param {number} tabId
+ * @returns {Promise<string>}
+ */
+export async function readCurrentVideoIdentity(tabId) {
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    world: 'MAIN',
+    func: () => {
+      const url = new URL(location.href);
+      const pathIdentity = url.pathname === '/watch'
+        ? String(url.searchParams.get('v') || '')
+        : String(url.pathname.match(/^\/(?:shorts|live)\/([^/?#]+)/)?.[1] || '');
+      const player = document.getElementById('movie_player');
+      const ytdPlayer = document.querySelector('ytd-player');
+      let response = null;
+
+      try {
+        response = player?.getPlayerResponse?.() || null;
+      } catch {
+        response = null;
+      }
+
+      if (!response) {
+        try {
+          response = ytdPlayer?.getPlayerResponse?.() || null;
+        } catch {
+          response = null;
+        }
+      }
+
+      const responseIdentity = String(response?.videoDetails?.videoId || '');
+      if (responseIdentity && pathIdentity && responseIdentity !== pathIdentity) {
+        return '';
+      }
+
+      return responseIdentity || pathIdentity;
+    }
+  });
+
+  return String(results?.[0]?.result || '');
+}
+
+/**
+ * Read legacy rendered transcript segments only when the user has already
+ * opened a visible YouTube transcript panel. Read-only: no clicks, waits, or
+ * page-state changes.
  *
  * @param {number} tabId
  * @returns {Promise<{cues: Array, diagnostics: string[]}>}
@@ -143,9 +493,7 @@ export async function readRenderedTranscript(tabId) {
   const results = await chrome.scripting.executeScript({
     target: { tabId },
     world: 'MAIN',
-    func: async () => {
-      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
+    func: () => {
       const cleanText = (value) => String(value || '')
         .replace(/\u200b/g, '')
         .replace(/\n+/g, ' ')
@@ -164,8 +512,15 @@ export async function readRenderedTranscript(tabId) {
         return 0;
       };
 
-      const readSegments = () => Array
+      const isVisible = (element) => {
+        if (!element?.getBoundingClientRect) return false;
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      };
+
+      const cues = Array
         .from(document.querySelectorAll('ytd-transcript-segment-renderer'))
+        .filter(isVisible)
         .map((segment) => {
           const timestamp = segment.querySelector('.segment-timestamp')?.textContent
             || segment.querySelector('[class*="timestamp"]')?.textContent
@@ -182,64 +537,13 @@ export async function readRenderedTranscript(tabId) {
         })
         .filter((cue) => cue.text);
 
-      let cues = readSegments();
-      if (cues.length) {
-        return {
-          cues,
-          diagnostics: ['dom:transcript panel already rendered']
-        };
-      }
-
-      const expandSelectors = [
-        'ytd-watch-metadata #description #expand',
-        '#description-inline-expander #expand',
-        'ytd-text-inline-expander #expand'
-      ];
-
-      for (const selector of expandSelectors) {
-        const button = document.querySelector(selector);
-        if (button && button.offsetParent !== null) {
-          button.click();
-          await sleep(350);
-          break;
-        }
-      }
-
-      let transcriptButton = document.querySelector(
-        'ytd-video-description-transcript-section-renderer button'
-      );
-
-      if (!transcriptButton) {
-        transcriptButton = Array
-          .from(document.querySelectorAll('button'))
-          .find((button) => {
-            const label = cleanText(
-              `${button.textContent || ''} ${button.getAttribute('aria-label') || ''}`
-            ).toLowerCase();
-
-            return label.includes('show transcript')
-              || label.includes('transcript')
-              || label.includes('文字起こし');
-          }) || null;
-      }
-
-      transcriptButton?.click();
-
-      for (let attempt = 0; attempt < 30; attempt += 1) {
-        await sleep(200);
-        cues = readSegments();
-
-        if (cues.length) {
-          return {
-            cues,
-            diagnostics: [`dom:rendered after ${(attempt + 1) * 200}ms`]
-          };
-        }
-      }
-
       return {
-        cues: [],
-        diagnostics: [`dom:no segments; transcriptButton=${Boolean(transcriptButton)}`]
+        cues,
+        diagnostics: [
+          cues.length
+            ? 'dom-legacy:read-only visible transcript panel'
+            : 'dom-legacy:no visible rendered segments'
+        ]
       };
     }
   });

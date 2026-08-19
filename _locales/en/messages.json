@@ -1,0 +1,14 @@
+{
+  "extensionName": {
+    "message": "Transcript Sidecar"
+  },
+  "extensionShortName": {
+    "message": "Sidecar"
+  },
+  "extensionDescription": {
+    "message": "View, copy, and export YouTube transcripts in Chrome's Side Panel while the video page stays unobstructed. No tracking or ads."
+  },
+  "extensionActionTitle": {
+    "message": "Open Transcript Sidecar"
+  }
+}

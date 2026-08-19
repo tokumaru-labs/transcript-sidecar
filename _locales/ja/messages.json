@@ -1,0 +1,14 @@
+{
+  "extensionName": {
+    "message": "Transcript Sidecar"
+  },
+  "extensionShortName": {
+    "message": "Sidecar"
+  },
+  "extensionDescription": {
+    "message": "YouTubeの字幕をChromeサイドパネルで表示・コピー・保存。YouTube側の文字起こしパネルを開かず、説明欄をふさぎません。追跡・広告なし。"
+  },
+  "extensionActionTitle": {
+    "message": "Transcript Sidecarを開く"
+  }
+}

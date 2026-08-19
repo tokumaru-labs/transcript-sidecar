@@ -9,10 +9,16 @@ import {
   removeRepeatedTranscriptBlock
 } from './text.js';
 import {
+  fetchSilentTranscriptPanelFromPage,
   fetchCaptionBodyFromPage,
   readRenderedTranscript,
   readRenderedTranscriptV2
 } from './youtube.js';
+import {
+  canUseUnverifiedDomFallback,
+  getCaptionTrackIdentity,
+  parseTranscriptPanelResponse
+} from './silent-transcript.js';
 
 const FORMAT_ATTEMPTS = [
   ['json3', parseJson3CaptionBody],
@@ -26,39 +32,92 @@ const FORMAT_ATTEMPTS = [
  *
  * 1. Fetch timed-text from the extension context.
  * 2. Fetch the same resources from the YouTube page context.
- * 3. Open YouTube's own transcript panel and read rendered segments.
- * 4. Read the user-opened transcript panel without legacy markup assumptions
- *    (runs only when steps 1-3 produced nothing; read-only, no network).
+ * 3. Fetch YouTube transcript panel data silently from page-exposed metadata.
+ * 4. Read an already user-opened legacy transcript panel (read-only).
+ * 5. Read an already user-opened modern transcript panel (read-only).
  *
- * @param {{ tabId: number, baseUrl: string }} input
- * @returns {Promise<{cues: Array, diagnostics: string[]}>}
+ * @param {{ tabId: number, track: unknown, availableTracks: unknown[], expectedVideoIdentity: string }} input
+ * @returns {Promise<{cues: Array, diagnostics: string[], method: string}>}
  */
-export async function loadCaptionTrack({ tabId, baseUrl }) {
+export async function loadCaptionTrack({
+  tabId,
+  track,
+  availableTracks,
+  expectedVideoIdentity
+}) {
   const diagnostics = [];
+  let method = '';
+  const baseUrl = String(track?.baseUrl || '');
+  const expectedTrackIdentity = getCaptionTrackIdentity(track);
 
   let cues = await fetchTimedTextFromExtension(baseUrl, diagnostics);
+  if (cues.length) method = 'extension-timed-text';
 
   if (!cues.length) {
     cues = await fetchTimedTextFromPage(tabId, baseUrl, diagnostics);
+    if (cues.length) method = 'page-timed-text';
   }
 
   if (!cues.length) {
+    const silentResult = await fetchSilentTranscriptPanelFromPage(
+      tabId,
+      track,
+      availableTracks,
+      expectedVideoIdentity
+    );
+    cues = silentResult.ok
+      ? parseTranscriptPanelResponse({
+          body: silentResult.body || '',
+          expectedTrackIdentity,
+          responseTrackIdentity: silentResult.trackIdentity || ''
+        })
+      : [];
+    diagnostics.push(
+      `silent-panel:${silentResult.commandType || 'metadata-unavailable'} `
+      + `HTTP ${silentResult.status} ${(silentResult.body || '').length}B `
+      + `${cues.length} cues`
+    );
+    if (silentResult.error) {
+      diagnostics.push(`silent-panel:error ${silentResult.error}`);
+    }
+    if (cues.length) method = 'silent-panel-data';
+
+    if (silentResult.unsafeSelection) {
+      diagnostics.push('track-selection:fail-closed');
+      return {
+        cues: [],
+        diagnostics,
+        method: 'none'
+      };
+    }
+  }
+
+  const canUseDomFallback = canUseUnverifiedDomFallback(track, availableTracks);
+
+  if (!cues.length && !canUseDomFallback) {
+    diagnostics.push('dom-fallback:skipped-unverifiable-track');
+  }
+
+  if (!cues.length && canUseDomFallback) {
     const domResult = await readRenderedTranscript(tabId);
     diagnostics.push(...(domResult.diagnostics || []));
     cues = normalizeCueList(domResult.cues || []);
-    diagnostics.push(`dom:${cues.length} segments`);
+    diagnostics.push(`dom-legacy:${cues.length} segments`);
+    if (cues.length) method = 'already-open-dom-legacy';
   }
 
-  if (!cues.length) {
+  if (!cues.length && canUseDomFallback) {
     const domV2Result = await readRenderedTranscriptV2(tabId);
     diagnostics.push(...(domV2Result.diagnostics || []));
     cues = normalizeCueList(domV2Result.cues || []);
     diagnostics.push(`dom-v2: ${cues.length} segments`);
+    if (cues.length) method = 'already-open-dom-v2';
   }
 
   return {
     cues: removeRepeatedTranscriptBlock(normalizeCueList(cues)),
-    diagnostics
+    diagnostics,
+    method: method || 'none'
   };
 }
 

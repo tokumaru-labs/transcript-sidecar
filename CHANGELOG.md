@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.4.1 — 2026-08-19
+
+### Added
+
+- Silent transcript-panel data retrieval through YouTube's own same-origin `get_panel` route when both timed-text paths return no cues. The request uses transcript metadata already attached to the current video page and does not execute YouTube page commands.
+- Local acquisition-method diagnostics distinguish extension timed-text, page-context timed-text, silent panel data, and read-only already-open DOM fallbacks without logging transcript text.
+- English and Japanese manifest metadata under `_locales/` so the Chrome Web Store Developer Dashboard can provide separate localized listing fields. The existing Side Panel JP / EN runtime interface remains unchanged.
+
+### Changed
+
+- Caption fallback order is now: extension timed-text, page-context timed-text, silent transcript-panel data, visible legacy transcript DOM (read-only), then visible modern transcript DOM (read-only).
+- Chrome Web Store listing material now contains release-ready English and Japanese summaries and detailed descriptions, plus the manual localization steps for the Developer Dashboard.
+- Manifest version is set to `0.4.1` for the approved release package.
+
+### Fixed
+
+- Transcript Sidecar no longer expands the YouTube description or clicks YouTube's transcript controls when caption requests return no data. If every silent path fails, it reports local diagnostics and leaves the page state untouched.
+
+### Preserved
+
+- Permissions and YouTube-only host access are unchanged.
+- No account, analytics, ads, tracking, remote runtime code, runtime dependencies, paid API, third-party transcript service, or developer-operated transcript server.
+
 ## 0.4.0 — 2026-07-22
 
 ### Added

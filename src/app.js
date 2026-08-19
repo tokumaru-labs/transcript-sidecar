@@ -1,6 +1,7 @@
 import { loadCaptionTrack } from './captions.js';
 import { copyText, downloadTextFile, safeFilename } from './files.js';
 import { translate } from './i18n.js';
+import { beginLoad, isLoadCurrent } from './load-guard.js';
 import {
   buildMarkdownTranscript,
   buildPlainTranscript,
@@ -22,14 +23,20 @@ import {
   setupLanguageToggle,
   showToast
 } from './ui.js';
-import { readVideoMetadata, seekVideo } from './youtube.js';
+import {
+  readCurrentVideoIdentity,
+  readVideoMetadata,
+  seekVideo
+} from './youtube.js';
 
 const state = {
   tabId: null,
   videoTitle: '',
   videoUrl: '',
+  videoIdentity: '',
   tracks: [],
   selectedTrackIndex: 0,
+  loadGeneration: 0,
   cues: []
 };
 
@@ -106,18 +113,23 @@ function bindEvents() {
 }
 
 async function loadCurrentVideo() {
+  const loadGeneration = beginLoad(state);
+
   try {
     resetTranscriptState();
+    state.videoIdentity = '';
     clearDiagnostics();
     setContentVisible(false);
     setStatus({ key: 'status.loadingVideo' }, 'normal', true);
 
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!isLoadCurrent(state, loadGeneration)) return;
     if (!tab?.id) throw createUiError('error.noTab');
 
     state.tabId = tab.id;
 
     const metadata = await readVideoMetadata(tab.id);
+    if (!isLoadCurrent(state, loadGeneration)) return;
     if (!metadata) {
       throw createUiError('error.noMetadata');
     }
@@ -126,8 +138,13 @@ async function loadCurrentVideo() {
       throw createUiError('error.notYouTube');
     }
 
+    if (!metadata.videoIdentity) {
+      throw createUiError('error.noMetadata');
+    }
+
     state.videoTitle = metadata.title || 'YouTube Transcript';
     state.videoUrl = metadata.url || '';
+    state.videoIdentity = metadata.videoIdentity;
     state.tracks = Array.isArray(metadata.tracks) ? metadata.tracks : [];
     state.selectedTrackIndex = 0;
 
@@ -139,8 +156,9 @@ async function loadCurrentVideo() {
     renderTrackOptions(state.tracks, state.selectedTrackIndex);
     setContentVisible(true);
 
-    await loadSelectedTrack();
+    await loadSelectedTrack(loadGeneration);
   } catch (error) {
+    if (!isLoadCurrent(state, loadGeneration)) return;
     console.error(error);
     resetTranscriptState();
     setContentVisible(false);
@@ -148,10 +166,12 @@ async function loadCurrentVideo() {
   }
 }
 
-async function loadSelectedTrack() {
+async function loadSelectedTrack(loadGeneration = beginLoad(state)) {
+  const selectedTrackIndex = state.selectedTrackIndex;
+  const expectedVideoIdentity = state.videoIdentity;
   const track = state.tracks[state.selectedTrackIndex];
 
-  if (!track?.baseUrl || !state.tabId) {
+  if (!track?.baseUrl || !state.tabId || !expectedVideoIdentity) {
     setStatus({ key: 'error.trackLoadFailed' }, 'error', false);
     return;
   }
@@ -169,8 +189,18 @@ async function loadSelectedTrack() {
   try {
     const result = await loadCaptionTrack({
       tabId: state.tabId,
-      baseUrl: track.baseUrl
+      track,
+      availableTracks: state.tracks,
+      expectedVideoIdentity
     });
+
+    if (!isLoadCurrent(state, loadGeneration, selectedTrackIndex)) return;
+
+    const currentVideoIdentity = await readCurrentVideoIdentity(state.tabId);
+    if (!isLoadCurrent(state, loadGeneration, selectedTrackIndex)) return;
+    if (!currentVideoIdentity || currentVideoIdentity !== expectedVideoIdentity) {
+      throw createUiError('error.trackLoadFailed');
+    }
 
     if (!result.cues.length) {
       console.warn('Transcript diagnostics:', result.diagnostics);
@@ -180,6 +210,10 @@ async function loadSelectedTrack() {
 
     state.cues = result.cues;
 
+    console.info(
+      `Transcript acquisition: ${result.method}; ${result.cues.length} cues`
+    );
+
     renderTranscript(state.cues, handleSeek);
     setStatus(
       { key: 'status.loaded', params: { count: state.cues.length } },
@@ -187,12 +221,15 @@ async function loadSelectedTrack() {
       false
     );
   } catch (error) {
+    if (!isLoadCurrent(state, loadGeneration, selectedTrackIndex)) return;
     console.error(error);
     state.cues = [];
     clearTranscript();
     setStatus(normalizeErrorMessage(error), 'error', false);
   } finally {
-    setActionButtonsDisabled(state.cues.length === 0);
+    if (isLoadCurrent(state, loadGeneration, selectedTrackIndex)) {
+      setActionButtonsDisabled(state.cues.length === 0);
+    }
   }
 }
 
