@@ -110,6 +110,101 @@ export function canUseUnverifiedDomFallback(selectedTrack, availableTracks) {
   );
 }
 
+function readYouTubeOwnedUrl(value) {
+  try {
+    const url = new URL(String(value || ''));
+    const hostname = url.hostname.replace(/^www\./, '');
+    return hostname === 'youtube.com' || hostname.endsWith('.youtube.com')
+      ? url
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The `xpe` timed-text experiment currently returns a successful HTTP status
+ * with an empty body unless YouTube supplies a separate proof token. Keep the
+ * alternate player route narrowly limited to that observed failure mode.
+ *
+ * @param {unknown} baseUrl
+ * @returns {boolean}
+ */
+export function shouldUseAlternatePlayerCaptionFallback(baseUrl) {
+  const url = readYouTubeOwnedUrl(baseUrl);
+  if (!url) return false;
+
+  return String(url.searchParams.get('exp') || '')
+    .split(',')
+    .map((value) => value.trim())
+    .includes('xpe');
+}
+
+/**
+ * Correlate an alternate player response with the exact selected opaque track
+ * identity. Language and ASR kind are never used as fallback identity.
+ *
+ * @param {unknown} selectedTrack
+ * @param {unknown[]} availableTracks
+ * @param {unknown[]} alternateTracks
+ * @returns {{ok: true, trackIdentity: string, track: unknown}|{ok: false, errorCode: string, error: string}}
+ */
+export function resolveAlternatePlayerCaptionTrack(
+  selectedTrack,
+  availableTracks,
+  alternateTracks
+) {
+  const trackIdentity = getCaptionTrackIdentity(selectedTrack);
+  if (!trackIdentity) {
+    return {
+      ok: false,
+      errorCode: 'track-identity-unavailable',
+      error: 'selected caption track identity unavailable'
+    };
+  }
+
+  if (!selectCaptionTrackByIdentity(availableTracks, trackIdentity)) {
+    return {
+      ok: false,
+      errorCode: 'track-identity-not-unique',
+      error: 'selected caption track identity is stale or not unique'
+    };
+  }
+
+  const matches = (Array.isArray(alternateTracks) ? alternateTracks : [])
+    .filter((track) => getCaptionTrackIdentity(track) === trackIdentity);
+
+  if (!matches.length) {
+    return {
+      ok: false,
+      errorCode: 'alternate-track-identity-missing',
+      error: 'alternate player response did not contain the selected caption identity'
+    };
+  }
+
+  if (matches.length !== 1) {
+    return {
+      ok: false,
+      errorCode: 'alternate-track-identity-ambiguous',
+      error: 'alternate player response contained duplicate caption identities'
+    };
+  }
+
+  if (!readYouTubeOwnedUrl(matches[0]?.baseUrl)) {
+    return {
+      ok: false,
+      errorCode: 'alternate-track-url-untrusted',
+      error: 'alternate player caption URL is not YouTube-owned'
+    };
+  }
+
+  return {
+    ok: true,
+    trackIdentity,
+    track: matches[0]
+  };
+}
+
 /**
  * Find YouTube's read-only get_panel request metadata in transcript-button
  * command data already attached to the page.

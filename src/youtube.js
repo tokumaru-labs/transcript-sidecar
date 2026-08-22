@@ -1,8 +1,19 @@
 import {
   findTranscriptPanelRequest,
   getCaptionTrackIdentity,
-  resolveSilentPanelTrackSelection
+  resolveAlternatePlayerCaptionTrack,
+  resolveSilentPanelTrackSelection,
+  selectCaptionTrackByIdentity,
+  shouldUseAlternatePlayerCaptionFallback
 } from './silent-transcript.js';
+
+// YouTube requires a valid version for non-WEB player clients. This is an
+// internal compatibility profile, not an API credential. The route fails
+// closed with diagnostics if YouTube retires it.
+const ALTERNATE_PLAYER_CLIENT = Object.freeze({
+  clientName: 'ANDROID',
+  clientVersion: '21.26.364'
+});
 
 /**
  * Chrome scripting helpers for interacting with the active YouTube page.
@@ -158,6 +169,273 @@ export async function fetchCaptionBodyFromPage(tabId, baseUrl, format) {
   });
 
   return results?.[0]?.result || { ok: false, status: 0, body: '' };
+}
+
+/**
+ * Ask YouTube's own player endpoint for an alternate copy of the current
+ * caption-track metadata when the WEB timed-text URL is proof-token gated.
+ * No page command or visible UI is executed. The result is usable only when
+ * one alternate track has the exact selected vssId.
+ *
+ * @param {number} tabId
+ * @param {unknown} selectedTrack
+ * @param {unknown[]} availableTracks
+ * @param {string} expectedVideoIdentity
+ * @returns {Promise<{ok: boolean, status: number, bodyBytes: number, trackCount: number, baseUrl?: string, trackIdentity?: string, playabilityStatus?: string, skipped?: boolean, unsafeSelection?: boolean, errorCode?: string, error?: string}>}
+ */
+export async function fetchAlternatePlayerCaptionFromPage(
+  tabId,
+  selectedTrack,
+  availableTracks,
+  expectedVideoIdentity
+) {
+  if (!shouldUseAlternatePlayerCaptionFallback(selectedTrack?.baseUrl)) {
+    return {
+      ok: false,
+      status: 0,
+      bodyBytes: 0,
+      trackCount: 0,
+      skipped: true,
+      errorCode: 'alternate-player-not-required'
+    };
+  }
+
+  const selectedIdentity = getCaptionTrackIdentity(selectedTrack);
+  if (!selectedIdentity) {
+    return {
+      ok: false,
+      status: 0,
+      bodyBytes: 0,
+      trackCount: 0,
+      unsafeSelection: true,
+      errorCode: 'track-identity-unavailable',
+      error: 'selected caption track identity unavailable'
+    };
+  }
+
+  if (!selectCaptionTrackByIdentity(availableTracks, selectedIdentity)) {
+    return {
+      ok: false,
+      status: 0,
+      bodyBytes: 0,
+      trackCount: 0,
+      unsafeSelection: true,
+      errorCode: 'track-identity-not-unique',
+      error: 'selected caption track identity is stale or not unique'
+    };
+  }
+
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    world: 'MAIN',
+    args: [
+      String(expectedVideoIdentity || ''),
+      ALTERNATE_PLAYER_CLIENT
+    ],
+    func: async (expectedIdentity, clientProfile) => {
+      let navigationStarted = false;
+      const markNavigation = () => {
+        navigationStarted = true;
+      };
+      document.addEventListener('yt-navigate-start', markNavigation);
+
+      const readVideoIdentity = () => {
+        const url = new URL(location.href);
+        const pathIdentity = url.pathname === '/watch'
+          ? String(url.searchParams.get('v') || '')
+          : String(url.pathname.match(/^\/(?:shorts|live)\/([^/?#]+)/)?.[1] || '');
+        const player = document.getElementById('movie_player');
+        const ytdPlayer = document.querySelector('ytd-player');
+        let response = null;
+
+        try {
+          response = player?.getPlayerResponse?.() || null;
+        } catch {
+          response = null;
+        }
+
+        if (!response) {
+          try {
+            response = ytdPlayer?.getPlayerResponse?.() || null;
+          } catch {
+            response = null;
+          }
+        }
+
+        const responseIdentity = String(response?.videoDetails?.videoId || '');
+        if (responseIdentity && pathIdentity && responseIdentity !== pathIdentity) {
+          return '';
+        }
+        return responseIdentity || pathIdentity;
+      };
+
+      try {
+        if (!expectedIdentity || readVideoIdentity() !== expectedIdentity) {
+          return {
+            ok: false,
+            status: 0,
+            bodyBytes: 0,
+            trackCount: 0,
+            contextChanged: true,
+            error: 'video identity changed before alternate player request'
+          };
+        }
+
+        const pageContext = window.ytcfg?.get?.('INNERTUBE_CONTEXT');
+        const apiKey = window.ytcfg?.get?.('INNERTUBE_API_KEY');
+        const pageClient = pageContext?.client;
+
+        if (!pageClient || !apiKey) {
+          return {
+            ok: false,
+            status: 0,
+            bodyBytes: 0,
+            trackCount: 0,
+            error: 'YouTube player request context unavailable'
+          };
+        }
+
+        const client = {
+          clientName: String(clientProfile?.clientName || ''),
+          clientVersion: String(clientProfile?.clientVersion || ''),
+          hl: String(pageClient.hl || 'en'),
+          gl: String(pageClient.gl || 'US')
+        };
+        const visitorData = pageClient.visitorData
+          || window.ytcfg?.get?.('VISITOR_DATA');
+        if (visitorData) client.visitorData = visitorData;
+
+        const url = new URL('/youtubei/v1/player', location.origin);
+        url.searchParams.set('key', apiKey);
+        url.searchParams.set('prettyPrint', 'false');
+
+        const headers = { 'content-type': 'application/json' };
+        if (visitorData) headers['x-goog-visitor-id'] = visitorData;
+
+        const response = await fetch(url.toString(), {
+          method: 'POST',
+          credentials: 'include',
+          cache: 'no-store',
+          headers,
+          body: JSON.stringify({
+            context: { client },
+            videoId: expectedIdentity,
+            contentCheckOk: true,
+            racyCheckOk: true
+          })
+        });
+
+        const body = await response.text();
+        const bodyBytes = new TextEncoder().encode(body).length;
+        if (navigationStarted || readVideoIdentity() !== expectedIdentity) {
+          return {
+            ok: false,
+            status: response.status,
+            bodyBytes,
+            trackCount: 0,
+            contextChanged: true,
+            error: 'video identity changed during alternate player request'
+          };
+        }
+
+        let data = null;
+        try {
+          data = JSON.parse(body);
+        } catch {
+          data = null;
+        }
+
+        const tracks = data
+          ?.captions
+          ?.playerCaptionsTracklistRenderer
+          ?.captionTracks || [];
+        const playabilityStatus = String(data?.playabilityStatus?.status || '');
+
+        return {
+          ok: response.ok && playabilityStatus === 'OK',
+          status: response.status,
+          bodyBytes,
+          trackCount: Array.isArray(tracks) ? tracks.length : 0,
+          playabilityStatus,
+          tracks: (Array.isArray(tracks) ? tracks : []).map((track) => ({
+            baseUrl: String(track?.baseUrl || ''),
+            languageCode: String(track?.languageCode || ''),
+            kind: String(track?.kind || ''),
+            vssId: String(track?.vssId || '')
+          })),
+          error: response.ok && playabilityStatus === 'OK'
+            ? ''
+            : `alternate player response unavailable (${playabilityStatus || response.status})`
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          status: 0,
+          bodyBytes: 0,
+          trackCount: 0,
+          contextChanged: navigationStarted
+            || readVideoIdentity() !== expectedIdentity,
+          error: String(error?.message || error)
+        };
+      } finally {
+        document.removeEventListener('yt-navigate-start', markNavigation);
+      }
+    }
+  });
+
+  const result = results?.[0]?.result || {
+    ok: false,
+    status: 0,
+    bodyBytes: 0,
+    trackCount: 0,
+    error: 'alternate player request returned no result'
+  };
+
+  if (result.contextChanged) {
+    return {
+      ...result,
+      tracks: undefined,
+      unsafeSelection: true,
+      errorCode: 'video-context-changed'
+    };
+  }
+
+  if (!result.ok) {
+    return { ...result, tracks: undefined };
+  }
+
+  const selection = resolveAlternatePlayerCaptionTrack(
+    selectedTrack,
+    availableTracks,
+    result.tracks
+  );
+  if (!selection.ok) {
+    return {
+      ...result,
+      ok: false,
+      tracks: undefined,
+      errorCode: selection.errorCode,
+      error: selection.error
+    };
+  }
+
+  const baseUrl = String(selection.track?.baseUrl || '');
+  if (!baseUrl) {
+    return {
+      ...result,
+      ok: false,
+      tracks: undefined,
+      errorCode: 'alternate-track-url-unavailable',
+      error: 'alternate player caption URL unavailable'
+    };
+  }
+
+  return {
+    ...result,
+    tracks: undefined,
+    baseUrl,
+    trackIdentity: selection.trackIdentity
+  };
 }
 
 /**

@@ -23,13 +23,17 @@ test('caption acquisition order keeps both timed-text routes first', async () =>
   const extensionIndex = acquisition.indexOf('fetchTimedTextFromExtension');
   const pageIndex = acquisition.indexOf('fetchTimedTextFromPage');
   const silentIndex = acquisition.indexOf('fetchSilentTranscriptPanelFromPage');
+  const alternatePlayerIndex = acquisition.indexOf(
+    'fetchAlternatePlayerCaptionFromPage'
+  );
   const legacyDomIndex = acquisition.indexOf('readRenderedTranscript(tabId)');
   const modernDomIndex = acquisition.indexOf('readRenderedTranscriptV2(tabId)');
 
   assert.ok(extensionIndex >= 0);
   assert.ok(extensionIndex < pageIndex);
   assert.ok(pageIndex < silentIndex);
-  assert.ok(silentIndex < legacyDomIndex);
+  assert.ok(silentIndex < alternatePlayerIndex);
+  assert.ok(alternatePlayerIndex < legacyDomIndex);
   assert.ok(legacyDomIndex < modernDomIndex);
 });
 

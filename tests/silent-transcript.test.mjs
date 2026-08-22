@@ -8,8 +8,10 @@ import {
   parseTimestampText,
   parseTranscriptPanelBody,
   parseTranscriptPanelResponse,
+  resolveAlternatePlayerCaptionTrack,
   resolveSilentPanelTrackSelection,
-  selectCaptionTrackByIdentity
+  selectCaptionTrackByIdentity,
+  shouldUseAlternatePlayerCaptionFallback
 } from '../src/silent-transcript.js';
 
 const manualTrack = {
@@ -112,6 +114,71 @@ test('ordinary one-track language selection keeps its exact identity', () => {
       trackIdentity: manualTrack.trackIdentity,
       languageCode: 'en'
     }
+  );
+});
+
+test('xpe timed-text URLs opt into the alternate player fallback', () => {
+  assert.equal(
+    shouldUseAlternatePlayerCaptionFallback(
+      'https://www.youtube.com/api/timedtext?exp=xpo%2Cxwmhp%2Cxpe&lang=en'
+    ),
+    true
+  );
+  assert.equal(
+    shouldUseAlternatePlayerCaptionFallback(
+      'https://www.youtube.com/api/timedtext?exp=xpo%2Cxwmhp&lang=en'
+    ),
+    false
+  );
+  assert.equal(shouldUseAlternatePlayerCaptionFallback('not a URL'), false);
+});
+
+test('alternate player captions require one exact opaque track identity', () => {
+  const alternateAsr = {
+    baseUrl: 'https://www.youtube.com/api/timedtext?track=alternate-asr',
+    languageCode: 'en',
+    kind: 'asr',
+    vssId: asrTrack.vssId
+  };
+
+  assert.deepEqual(
+    resolveAlternatePlayerCaptionTrack(
+      asrTrack,
+      [manualTrack, asrTrack],
+      [alternateAsr]
+    ),
+    {
+      ok: true,
+      trackIdentity: asrTrack.trackIdentity,
+      track: alternateAsr
+    }
+  );
+
+  assert.equal(
+    resolveAlternatePlayerCaptionTrack(
+      asrTrack,
+      [manualTrack, asrTrack],
+      [{ ...alternateAsr, vssId: manualTrack.vssId }]
+    ).errorCode,
+    'alternate-track-identity-missing'
+  );
+
+  assert.equal(
+    resolveAlternatePlayerCaptionTrack(
+      asrTrack,
+      [manualTrack, asrTrack],
+      [alternateAsr, { ...alternateAsr }]
+    ).errorCode,
+    'alternate-track-identity-ambiguous'
+  );
+
+  assert.equal(
+    resolveAlternatePlayerCaptionTrack(
+      asrTrack,
+      [manualTrack, asrTrack],
+      [{ ...alternateAsr, baseUrl: 'https://example.com/captions' }]
+    ).errorCode,
+    'alternate-track-url-untrusted'
   );
 });
 

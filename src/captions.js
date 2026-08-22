@@ -9,6 +9,7 @@ import {
   removeRepeatedTranscriptBlock
 } from './text.js';
 import {
+  fetchAlternatePlayerCaptionFromPage,
   fetchSilentTranscriptPanelFromPage,
   fetchCaptionBodyFromPage,
   readRenderedTranscript,
@@ -47,6 +48,7 @@ export async function loadCaptionTrack({
 }) {
   const diagnostics = [];
   let method = '';
+  let silentUnsafeSelection = false;
   const baseUrl = String(track?.baseUrl || '');
   const expectedTrackIdentity = getCaptionTrackIdentity(track);
 
@@ -84,12 +86,73 @@ export async function loadCaptionTrack({
 
     if (silentResult.unsafeSelection) {
       diagnostics.push('track-selection:fail-closed');
+      silentUnsafeSelection = true;
+
+      if (silentResult.errorCode === 'video-context-changed') {
+        return {
+          cues: [],
+          diagnostics,
+          method: 'none'
+        };
+      }
+    }
+  }
+
+  if (!cues.length) {
+    const alternateResult = await fetchAlternatePlayerCaptionFromPage(
+      tabId,
+      track,
+      availableTracks,
+      expectedVideoIdentity
+    );
+
+    if (alternateResult.skipped) {
+      diagnostics.push('alternate-player:skipped-not-xpe');
+    } else {
+      diagnostics.push(
+        `alternate-player:ANDROID HTTP ${alternateResult.status} `
+        + `${alternateResult.bodyBytes || 0}B `
+        + `${alternateResult.trackCount || 0} tracks`
+      );
+      if (alternateResult.playabilityStatus) {
+        diagnostics.push(
+          `alternate-player:playability ${alternateResult.playabilityStatus}`
+        );
+      }
+      if (alternateResult.errorCode) {
+        diagnostics.push(`alternate-player:error-code ${alternateResult.errorCode}`);
+      }
+      if (alternateResult.error) {
+        diagnostics.push(`alternate-player:error ${alternateResult.error}`);
+      }
+    }
+
+    if (alternateResult.unsafeSelection) {
+      diagnostics.push('track-selection:fail-closed');
       return {
         cues: [],
         diagnostics,
         method: 'none'
       };
     }
+
+    if (alternateResult.ok && alternateResult.baseUrl) {
+      cues = await fetchTimedTextFromPage(
+        tabId,
+        alternateResult.baseUrl,
+        diagnostics,
+        'alternate-player'
+      );
+      if (cues.length) method = 'alternate-player-timed-text';
+    }
+  }
+
+  if (!cues.length && silentUnsafeSelection) {
+    return {
+      cues: [],
+      diagnostics,
+      method: 'none'
+    };
   }
 
   const canUseDomFallback = canUseUnverifiedDomFallback(track, availableTracks);
@@ -149,13 +212,19 @@ async function fetchTimedTextFromExtension(baseUrl, diagnostics) {
   return [];
 }
 
-async function fetchTimedTextFromPage(tabId, baseUrl, diagnostics) {
+async function fetchTimedTextFromPage(
+  tabId,
+  baseUrl,
+  diagnostics,
+  diagnosticPrefix = 'page'
+) {
   for (const [format, parser] of FORMAT_ATTEMPTS) {
     const result = await fetchCaptionBodyFromPage(tabId, baseUrl, format);
     const cues = result.ok ? parser(result.body || '') : [];
 
     diagnostics.push(
-      `page:${format || 'original'} HTTP ${result.status} ${(result.body || '').length}B ${cues.length} cues`
+      `${diagnosticPrefix}:${format || 'original'} HTTP ${result.status} `
+      + `${(result.body || '').length}B ${cues.length} cues`
     );
 
     if (cues.length) return cues;
