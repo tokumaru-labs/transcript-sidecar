@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.2 — 2026-08-22
+
+### Fixed
+
+- Restored real-video caption acquisition when YouTube timed-text URLs gated by `exp=xpe` return empty bodies. After the existing silent routes yield no cues, a YouTube-owned same-origin player fallback accepts alternate timed-text only when its `vssId` is a unique exact match for the selected track.
+- Added regression coverage for fallback success, compatibility-profile failure, mismatched or duplicate track identity, and SPA stale-result rejection.
+
+### Preserved
+
+- Silent acquisition, fail-closed track selection, no YouTube UI manipulation, YouTube-only host access, existing permissions and privacy boundaries, runtime features, and the dependency-free package remain unchanged.
+
 ## 0.4.1 — 2026-08-19
 
 ### Added

@@ -69,7 +69,7 @@ test('manifest permissions remain exactly scoped to YouTube Side Panel use', asy
     'https://youtube.com/*',
     'https://m.youtube.com/*'
   ]);
-  assert.equal(manifest.version, '0.4.1');
+  assert.equal(manifest.version, '0.4.2');
   assert.equal(manifest.default_locale, 'en');
   assert.equal(manifest.name, '__MSG_extensionName__');
   assert.equal(manifest.description, '__MSG_extensionDescription__');

@@ -4,7 +4,7 @@
 
 A small, privacy-focused Manifest V3 Chrome extension for copying, formatting, and exporting transcripts from YouTube videos.
 
-**Current version: 0.4.1**
+**Current version: 0.4.2**
 **Publisher: Tokumaru Labs**
 
 > No account. No tracking. No ads. No developer-operated transcript server.
@@ -95,7 +95,7 @@ See [PRIVACY.md](PRIVACY.md) for the full privacy policy.
 2. Open `chrome://extensions/` in Chrome.
 3. Turn on **Developer mode**.
 4. Click **Load unpacked**.
-5. Select the extracted `transcript-sidecar-v0.4.1` folder.
+5. Select the extracted `transcript-sidecar-v0.4.2` folder.
 6. Open a YouTube video that has captions.
 7. Click the **Transcript Sidecar** extension icon.
 8. Pick **JP** or **EN** in the header if you want to change the interface language.

@@ -1,6 +1,6 @@
-# Public release checklist — v0.4.1
+# Public release checklist — v0.4.2
 
-The approved release-package version is `0.4.1`. Publication remains separately approval-gated.
+The approved release-package version is `0.4.2`. Publication remains separately approval-gated.
 
 ## Code
 
