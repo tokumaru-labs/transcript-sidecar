@@ -9,7 +9,7 @@
 <body>
   <main class="app">
     <header class="header">
-      <div>
+      <div class="header-brand">
         <div class="brand-row">
           <h1>Transcript Sidecar</h1>
           <span class="privacy-badge">LOCAL</span>
@@ -42,28 +42,33 @@
         <a id="videoUrl" class="video-url" href="#" target="_blank" rel="noreferrer"></a>
       </div>
 
-      <label class="field-label" for="trackSelect" data-i18n="field.captions">字幕</label>
-      <select id="trackSelect" class="track-select"></select>
+      <div class="track-field">
+        <label class="field-label" for="trackSelect" data-i18n="field.captions">字幕</label>
+        <select id="trackSelect" class="track-select"></select>
+      </div>
 
       <button id="copyPlainButton" class="primary-button" type="button">
-        <span class="button-icon">📋</span>
+        <span class="button-icon" aria-hidden="true">📋</span>
         <span data-i18n="button.copyPlain">全文をコピー</span>
       </button>
 
       <button id="copyReadableButton" class="readable-button" type="button">
-        <span class="button-icon">✨</span>
+        <span class="button-icon" aria-hidden="true">✨</span>
         <span class="button-copy">
           <strong data-i18n="button.copyReadable">読みやすくコピー</strong>
           <small data-i18n="button.copyReadableHint">内容は変えず、段落だけ整えます</small>
         </span>
       </button>
 
-      <div class="button-grid">
-        <button id="copyTimestampButton" class="secondary-button" type="button"><span aria-hidden="true">⏱</span> <span data-i18n="button.copyTimestamp">時刻付きコピー</span></button>
-        <button id="copyMarkdownButton" class="secondary-button" type="button"><span aria-hidden="true">#</span> <span data-i18n="button.copyMarkdown">Markdownコピー</span></button>
-        <button id="downloadTxtButton" class="secondary-button" type="button"><span aria-hidden="true">↓</span> <span data-i18n="button.saveTxt">TXT保存</span></button>
-        <button id="downloadMarkdownButton" class="secondary-button" type="button"><span aria-hidden="true">↓</span> <span data-i18n="button.saveMd">MD保存</span></button>
-      </div>
+      <details class="export-options">
+        <summary data-i18n="button.moreExports">その他のコピー・保存</summary>
+        <div class="button-grid">
+          <button id="copyTimestampButton" class="secondary-button" type="button"><span aria-hidden="true">⏱</span> <span data-i18n="button.copyTimestamp">時刻付きコピー</span></button>
+          <button id="copyMarkdownButton" class="secondary-button" type="button"><span aria-hidden="true">#</span> <span data-i18n="button.copyMarkdown">Markdownコピー</span></button>
+          <button id="downloadTxtButton" class="secondary-button" type="button"><span aria-hidden="true">↓</span> <span data-i18n="button.saveTxt">TXT保存</span></button>
+          <button id="downloadMarkdownButton" class="secondary-button" type="button"><span aria-hidden="true">↓</span> <span data-i18n="button.saveMd">MD保存</span></button>
+        </div>
+      </details>
 
       <div class="transcript-header">
         <h2 data-i18n="transcript.heading">Transcript</h2>
