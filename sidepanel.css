@@ -7,9 +7,10 @@
   --text: #f5f7fa;
   --muted: #a9b0bc;
   --border: #303642;
-  --accent: #ff3d5a;
-  --accent-hover: #ff5972;
+  --accent: #d72b49;
+  --accent-hover: #c72243;
   --good: #44d7a8;
+  --link: #7bb7ff;
 }
 
 * {
@@ -31,6 +32,14 @@ button {
   cursor: pointer;
 }
 
+button:focus-visible,
+select:focus-visible,
+summary:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
 button:disabled,
 select:disabled {
   cursor: not-allowed;
@@ -48,6 +57,10 @@ select:disabled {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 14px;
+}
+
+.header-brand {
+  min-width: 0;
 }
 
 .brand-row {
@@ -97,6 +110,7 @@ h1 {
 
 .lang-button {
   min-width: 30px;
+  min-height: 26px;
   padding: 5px 7px;
   border: 0;
   background: transparent;
@@ -118,7 +132,7 @@ h1 {
 }
 
 .lang-button:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--text);
   outline-offset: -2px;
 }
 
@@ -161,6 +175,8 @@ h1 {
 .status-card.success {
   border-color: color-mix(in srgb, var(--good) 55%, var(--border));
   color: var(--good);
+  padding: 8px 10px;
+  margin-bottom: 10px;
 }
 
 .status-card p {
@@ -191,6 +207,7 @@ h1 {
   font-size: 13px;
   font-weight: 700;
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .video-url {
@@ -202,9 +219,17 @@ h1 {
   white-space: nowrap;
 }
 
+.track-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
 .field-label {
   display: block;
-  margin: 0 0 6px;
+  flex: 0 0 auto;
+  margin: 0;
   color: var(--muted);
   font-size: 11px;
   font-weight: 700;
@@ -212,8 +237,8 @@ h1 {
 
 .track-select {
   width: 100%;
+  min-width: 0;
   min-height: 38px;
-  margin-bottom: 12px;
   padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -283,9 +308,29 @@ h1 {
 
 .button-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 7px;
-  margin-bottom: 18px;
+  padding: 0 8px 8px;
+}
+
+.export-options {
+  margin-bottom: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.export-options summary {
+  min-height: 36px;
+  padding: 9px 10px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.export-options summary:hover {
+  background: var(--panel-2);
+  border-radius: 10px;
 }
 
 .diagnostics {
@@ -365,7 +410,7 @@ h1 {
 
 .cue {
   display: grid;
-  grid-template-columns: 52px 1fr;
+  grid-template-columns: 52px minmax(0, 1fr);
   gap: 8px;
   padding: 9px 2px;
   border-bottom: 1px solid var(--border);
@@ -377,7 +422,7 @@ h1 {
   padding: 2px 0;
   border: 0;
   background: transparent;
-  color: #7bb7ff;
+  color: var(--link);
   font-size: 10px;
   text-align: left;
 }
@@ -411,7 +456,6 @@ h1 {
 
 .publisher {
   margin-top: 2px;
-  opacity: 0.8;
 }
 
 .toast {
@@ -439,13 +483,43 @@ h1 {
   transform: translate(-50%, 0);
 }
 
+/* Give the product name its own row before the header controls crowd it. */
+@media (max-width: 360px) {
+  .header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .header-brand {
+    display: contents;
+  }
+
+  .brand-row {
+    grid-column: 1 / -1;
+  }
+
+  .subtitle {
+    align-self: center;
+    margin: 0;
+  }
+}
+
 @media (prefers-color-scheme: light) {
   :root {
     --bg: #f7f8fa;
     --panel: #ffffff;
     --panel-2: #f1f3f6;
     --text: #191c22;
-    --muted: #667080;
+    --muted: #596273;
     --border: #dfe3e8;
+    --accent: #c72243;
+    --accent-hover: #ae1c39;
+    --good: #087f5b;
+    --link: #145db0;
+  }
+
+  .status-card.error {
+    color: #a51d38;
   }
 }
